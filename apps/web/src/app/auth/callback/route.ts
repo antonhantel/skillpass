@@ -1,19 +1,39 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { db } from "@skillpass/db";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/dashboard";
 
   if (code) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
+      // Check if user exists in DB and has a type set
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+
+      if (authUser) {
+        const dbUser = await db.user.findFirst({
+          where: { supabaseId: authUser.id },
+        });
+
+        if (!dbUser || !dbUser.type) {
+          // New user or user without type → onboarding
+          return NextResponse.redirect(`${origin}/onboarding`);
+        }
+
+        // Existing user → route to their dashboard
+        const dest =
+          dbUser.type === "EMPLOYER" ? "/employer-dashboard" : "/dashboard";
+        return NextResponse.redirect(`${origin}${dest}`);
+      }
+
+      return NextResponse.redirect(`${origin}/onboarding`);
     }
   }
 
-  // If no code or exchange failed, redirect to sign-in with error
   return NextResponse.redirect(`${origin}/sign-in`);
 }

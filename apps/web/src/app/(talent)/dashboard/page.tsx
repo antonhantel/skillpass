@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc-client";
 import { ScoreCard } from "@/components/talent/score-card";
 import { ProfileCompleteness } from "@/components/talent/profile-completeness";
@@ -9,7 +11,18 @@ import Link from "next/link";
 import { FileText, GraduationCap, Users, ClipboardCheck } from "lucide-react";
 
 export default function DashboardPage() {
-  const { data: profile, isLoading } = trpc.talent.getProfile.useQuery();
+  const router = useRouter();
+  const { data: user } = trpc.user.me.useQuery(undefined, { retry: false });
+  const { data: profile, isLoading, error } = trpc.talent.getProfile.useQuery(
+    undefined,
+    { retry: false, enabled: !!user }
+  );
+
+  useEffect(() => {
+    if (user && !user.type) {
+      router.replace("/onboarding");
+    }
+  }, [user, router]);
 
   if (isLoading) {
     return (
@@ -19,10 +32,17 @@ export default function DashboardPage() {
     );
   }
 
-  if (!profile) {
+  if (error || !profile) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="text-muted-foreground">Profile not found</div>
+      <div className="flex h-64 flex-col items-center justify-center gap-4">
+        <div className="text-muted-foreground">
+          {error?.message === "Talent profile not found"
+            ? "Your talent profile hasn't been set up yet."
+            : "Something went wrong loading your profile."}
+        </div>
+        <Button variant="outline" onClick={() => router.push("/onboarding")}>
+          Complete Setup
+        </Button>
       </div>
     );
   }

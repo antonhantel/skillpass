@@ -45,9 +45,17 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/auth/") ||
     path.startsWith("/api/");
 
+  // Redirect unauthenticated users to sign-in
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/sign-in";
+    return NextResponse.redirect(url);
+  }
+
+  // Redirect authenticated users away from sign-in/sign-up
+  if (user && (path.startsWith("/sign-in") || path.startsWith("/sign-up"))) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
     return NextResponse.redirect(url);
   }
 
