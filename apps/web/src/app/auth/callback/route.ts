@@ -27,7 +27,11 @@ export async function GET(request: Request) {
 
         // Existing user → route to their dashboard
         const dest =
-          dbUser.type === "EMPLOYER" ? "/employer-dashboard" : "/dashboard";
+          dbUser.type === "ADMIN"
+            ? "/admin"
+            : dbUser.type === "EMPLOYER"
+              ? "/employer-dashboard"
+              : "/dashboard";
         return NextResponse.redirect(`${origin}${dest}`);
       }
 

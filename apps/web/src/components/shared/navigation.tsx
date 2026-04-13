@@ -36,6 +36,14 @@ const employerNavItems = [
   { href: "/shortlist", label: "Shortlist", icon: Heart },
 ];
 
+const adminNavItems = [
+  { href: "/admin", label: "Overview", icon: LayoutDashboard },
+  { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/admin/companies", label: "Companies", icon: Briefcase },
+  { href: "/admin/talent", label: "Talent Profiles", icon: User },
+  { href: "/admin/audit-log", label: "Audit Log", icon: FileText },
+];
+
 function Sidebar({ items }: { items: typeof talentNavItems }) {
   const pathname = usePathname();
 
@@ -92,4 +100,8 @@ export function TalentSidebar() {
 
 export function EmployerSidebar() {
   return <Sidebar items={employerNavItems} />;
+}
+
+export function AdminSidebar() {
+  return <Sidebar items={adminNavItems} />;
 }

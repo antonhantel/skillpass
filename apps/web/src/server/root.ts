@@ -8,6 +8,7 @@ import { referenceRouter } from "./routers/reference";
 import { performanceReviewRouter } from "./routers/performance-review";
 import { scoreRouter } from "./routers/score";
 import { employerRouter } from "./routers/employer";
+import { adminRouter } from "./routers/admin";
 
 export const appRouter = router({
   user: userRouter,
@@ -19,6 +20,7 @@ export const appRouter = router({
   performanceReview: performanceReviewRouter,
   score: scoreRouter,
   employer: employerRouter,
+  admin: adminRouter,
 });
 
 export type AppRouter = typeof appRouter;
