@@ -1,0 +1,6 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "pnpm turbo build --filter=@skillpass/web",
+  "installCommand": "pnpm install",
+  "outputDirectory": "apps/web/.next"
+}

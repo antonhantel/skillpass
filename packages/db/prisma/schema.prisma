@@ -1,0 +1,521 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [pgcrypto]
+}
+
+// Load .env from project root
+// Run prisma commands from root: pnpm db:push
+
+// ─── Enums ──────────────────────────────────────────────
+
+enum UserType {
+  TALENT
+  EMPLOYER
+  ADMIN
+}
+
+enum WorkAuthStatus {
+  US_CITIZEN
+  GREEN_CARD
+  H1B
+  OPT
+  OTHER
+  UNDISCLOSED
+}
+
+enum ReferenceStatus {
+  PENDING
+  COMPLETED
+  DECLINED
+  EXPIRED
+}
+
+enum RelationshipType {
+  MANAGER
+  PEER
+  DIRECT_REPORT
+  PROFESSOR
+  CLIENT
+  MENTOR
+}
+
+enum AssessmentModule {
+  CODING_ALGORITHMS
+  CODING_SYSTEM_DESIGN
+  CASE_CONSULTING
+  DATA_ANALYSIS
+  WRITING
+  GMA
+  PERSONALITY_BIG5
+  SJT
+}
+
+enum ReviewSource {
+  SELF_UPLOAD
+  EMPLOYER_PUSH
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum CompanyPlan {
+  FREE_TRIAL
+  STARTER
+  GROWTH
+  ENTERPRISE
+}
+
+enum RoleStatus {
+  ACTIVE
+  PAUSED
+  FILLED
+  ARCHIVED
+}
+
+enum TranscriptStatus {
+  UPLOADED
+  PROCESSING
+  PARSED
+  VERIFIED
+  FAILED
+}
+
+// ─── User & Auth ────────────────────────────────────────
+
+model User {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  supabaseId  String    @unique @map("clerk_id")
+  email       String    @unique
+  name        String
+  type        UserType?
+  avatarUrl   String?   @map("avatar_url")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  lastLoginAt DateTime? @map("last_login_at")
+
+  talentProfile  TalentProfile?
+  employerMember EmployerMember?
+  auditLogs      AuditLog[]
+
+  @@map("users")
+}
+
+// ─── Talent ─────────────────────────────────────────────
+
+model TalentProfile {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String          @unique @map("user_id") @db.Uuid
+  username        String          @unique
+  headline        String?
+  bio             String?
+  location        String?
+  workAuth        WorkAuthStatus? @map("work_auth")
+  yearsExperience Int?            @map("years_experience")
+  linkedinUrl     String?         @map("linkedin_url")
+  phoneNumber     String?         @map("phone_number")
+
+  // Denormalized scores
+  overallSkillScore    Float?   @map("overall_skill_score")
+  academicScore        Float?   @map("academic_score")
+  performanceScore     Float?   @map("performance_score")
+  peerSignalScore      Float?   @map("peer_signal_score")
+  assessedAbilityScore Float?   @map("assessed_ability_score")
+  scoreConfidence      Float?   @map("score_confidence")
+  scoreUpdatedAt       DateTime? @map("score_updated_at")
+
+  // Privacy
+  isPublic        Boolean @default(true) @map("is_public")
+  privacySettings Json    @default("{}") @map("privacy_settings")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  education          Education[]
+  workHistory        WorkHistory[]
+  transcripts        Transcript[]
+  references         Reference[]
+  assessments        Assessment[]
+  performanceReviews PerformanceReview[]
+  candidateViews     CandidateView[]
+  hires              Hire[]
+  skills             TalentSkill[]
+  scoreHistory       ScoreHistory[]
+
+  @@index([overallSkillScore])
+  @@index([location])
+  @@index([yearsExperience])
+  @@map("talent_profiles")
+}
+
+model TalentSkill {
+  id              String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  talentProfileId String @map("talent_profile_id") @db.Uuid
+  name            String
+  category        String?
+  yearsUsed       Int?   @map("years_used")
+
+  talentProfile TalentProfile @relation(fields: [talentProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([talentProfileId, name])
+  @@map("talent_skills")
+}
+
+// ─── Education & Transcripts ────────────────────────────
+
+model Institution {
+  id                  String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                String  @unique
+  country             String
+  stateOrProvince     String? @map("state_or_province")
+  tierScore           Float?  @map("tier_score")
+  avgGpa              Float?  @map("avg_gpa")
+  acceptanceRate      Float?  @map("acceptance_rate")
+  rankingUsNews       Int?    @map("ranking_us_news")
+  rankingQs           Int?    @map("ranking_qs")
+  researchOutput      Float?  @map("research_output")
+  studentFacultyRatio Float?  @map("student_faculty_ratio")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  departments Department[]
+  education   Education[]
+
+  @@map("institutions")
+}
+
+model Department {
+  id               String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  institutionId    String @map("institution_id") @db.Uuid
+  name             String
+  rankingScore     Float? @map("ranking_score")
+  medianSalary     Float? @map("median_salary")
+  phdPlacementRate Float? @map("phd_placement_rate")
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@unique([institutionId, name])
+  @@map("departments")
+}
+
+model Education {
+  id                   String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  talentProfileId      String  @map("talent_profile_id") @db.Uuid
+  institutionId        String? @map("institution_id") @db.Uuid
+  institutionName      String  @map("institution_name")
+  degree               String
+  major                String
+  minor                String?
+  gpaRaw               Float?  @map("gpa_raw")
+  gpaScale             Float   @default(4.0) @map("gpa_scale")
+  gpaCalibrated        Float?  @map("gpa_calibrated")
+  gpaPercentile        Float?  @map("gpa_percentile")
+  institutionTierScore Float?  @map("institution_tier_score")
+  departmentScore      Float?  @map("department_score")
+  startDate            DateTime? @map("start_date")
+  graduationYear       Int?    @map("graduation_year")
+
+  talentProfile TalentProfile @relation(fields: [talentProfileId], references: [id], onDelete: Cascade)
+  institution   Institution?  @relation(fields: [institutionId], references: [id])
+  courses       Course[]
+
+  @@map("education")
+}
+
+model Transcript {
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  talentProfileId    String             @map("talent_profile_id") @db.Uuid
+  fileUrl            String             @map("file_url")
+  fileName           String             @map("file_name")
+  fileType           String             @map("file_type")
+  status             TranscriptStatus   @default(UPLOADED)
+  ocrRawOutput       Json?              @map("ocr_raw_output")
+  parsedData         Json?              @map("parsed_data")
+  verificationStatus VerificationStatus @default(UNVERIFIED) @map("verification_status")
+  verificationHash   String?            @map("verification_hash")
+  errorMessage       String?            @map("error_message")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  talentProfile TalentProfile @relation(fields: [talentProfileId], references: [id], onDelete: Cascade)
+
+  @@map("transcripts")
+}
+
+model Course {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  educationId  String  @map("education_id") @db.Uuid
+  courseCode   String? @map("course_code")
+  courseName   String  @map("course_name")
+  grade        String?
+  gradeNumeric Float?  @map("grade_numeric")
+  credits      Float?
+  semester     String?
+  rigorScore   Float?  @map("rigor_score")
+  category     String?
+
+  education Education @relation(fields: [educationId], references: [id], onDelete: Cascade)
+
+  @@map("courses")
+}
+
+// ─── Work History & Performance Reviews ─────────────────
+
+model WorkHistory {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  talentProfileId String    @map("talent_profile_id") @db.Uuid
+  company         String
+  title           String
+  startDate       DateTime  @map("start_date")
+  endDate         DateTime? @map("end_date")
+  isCurrent       Boolean   @default(false) @map("is_current")
+  description     String?
+  location        String?
+
+  talentProfile TalentProfile @relation(fields: [talentProfileId], references: [id], onDelete: Cascade)
+
+  @@map("work_history")
+}
+
+model PerformanceReview {
+  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  talentProfileId  String       @map("talent_profile_id") @db.Uuid
+  company          String?
+  reviewerRole     String?      @map("reviewer_role")
+  period           String?
+  rawText          String?      @map("raw_text")
+  fileUrl          String?      @map("file_url")
+  parsedThemes     Json?        @map("parsed_themes")
+  sentimentScores  Json?        @map("sentiment_scores")
+  overallSentiment Float?       @map("overall_sentiment")
+  strengths        Json?
+  developmentAreas Json?        @map("development_areas")
+  source           ReviewSource @default(SELF_UPLOAD)
+  verified         Boolean      @default(false)
+  anonymized       Boolean      @default(false)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  talentProfile TalentProfile @relation(fields: [talentProfileId], references: [id], onDelete: Cascade)
+
+  @@map("performance_reviews")
+}
+
+// ─── References & Raters ────────────────────────────────
+
+model Rater {
+  id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                 String
+  email                String             @unique
+  linkedinUrl          String?            @map("linkedin_url")
+  company              String?
+  title                String?
+  historicalMean       Float?             @map("historical_mean")
+  historicalStdev      Float?             @map("historical_stdev")
+  totalReferencesGiven Int                @default(0) @map("total_references_given")
+  verificationStatus   VerificationStatus @default(UNVERIFIED) @map("verification_status")
+  emailDomainVerified  Boolean            @default(false) @map("email_domain_verified")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  references Reference[]
+
+  @@map("raters")
+}
+
+model Reference {
+  id                   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  talentProfileId      String           @map("talent_profile_id") @db.Uuid
+  raterId              String?          @map("rater_id") @db.Uuid
+  raterEmail           String           @map("rater_email")
+  raterName            String?          @map("rater_name")
+  relationshipType     RelationshipType @map("relationship_type")
+  relationshipDuration Int?             @map("relationship_duration")
+  recency              DateTime?
+  status               ReferenceStatus  @default(PENDING)
+  token                String           @unique
+  dimensionScores      Json?            @map("dimension_scores")
+  forcedChoiceRankings Json?            @map("forced_choice_rankings")
+  freeTextResponses    Json?            @map("free_text_responses")
+  raterCalibrationFactor Float?         @map("rater_calibration_factor")
+  normalizedScore      Float?           @map("normalized_score")
+
+  requestedAt DateTime  @default(now()) @map("requested_at")
+  completedAt DateTime? @map("completed_at")
+  expiresAt   DateTime  @map("expires_at")
+
+  talentProfile TalentProfile @relation(fields: [talentProfileId], references: [id], onDelete: Cascade)
+  rater         Rater?        @relation(fields: [raterId], references: [id])
+
+  @@map("references")
+}
+
+// ─── Assessments ────────────────────────────────────────
+
+model Assessment {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  talentProfileId String           @map("talent_profile_id") @db.Uuid
+  module          AssessmentModule
+  scoreRaw        Float?           @map("score_raw")
+  scorePercentile Float?           @map("score_percentile")
+  details         Json?
+  integrityFlags  Json?            @map("integrity_flags")
+  proctoringData  Json?            @map("proctoring_data")
+  startedAt       DateTime?        @map("started_at")
+  completedAt     DateTime?        @map("completed_at")
+  expiresAt       DateTime?        @map("expires_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  talentProfile TalentProfile @relation(fields: [talentProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([talentProfileId, module])
+  @@map("assessments")
+}
+
+// ─── Score History ──────────────────────────────────────
+
+model ScoreHistory {
+  id                   String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  talentProfileId      String @map("talent_profile_id") @db.Uuid
+  overallScore         Float  @map("overall_score")
+  academicScore        Float? @map("academic_score")
+  performanceScore     Float? @map("performance_score")
+  peerSignalScore      Float? @map("peer_signal_score")
+  assessedAbilityScore Float? @map("assessed_ability_score")
+  confidence           Float?
+  triggerEvent         String @map("trigger_event")
+  recordedAt           DateTime @default(now()) @map("recorded_at")
+
+  talentProfile TalentProfile @relation(fields: [talentProfileId], references: [id], onDelete: Cascade)
+
+  @@index([talentProfileId, recordedAt])
+  @@map("score_history")
+}
+
+// ─── Employer ───────────────────────────────────────────
+
+model Company {
+  id                   String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                 String
+  domain               String      @unique
+  domainVerified       Boolean     @default(false) @map("domain_verified")
+  plan                 CompanyPlan @default(FREE_TRIAL)
+  seatsTotal           Int         @default(1) @map("seats_total")
+  seatsUsed            Int         @default(0) @map("seats_used")
+  trialEndsAt          DateTime?   @map("trial_ends_at")
+  stripeCustomerId     String?     @unique @map("stripe_customer_id")
+  stripeSubscriptionId String?     @map("stripe_subscription_id")
+  logoUrl              String?     @map("logo_url")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  members        EmployerMember[]
+  roles          Role[]
+  candidateViews CandidateView[]
+  hires          Hire[]
+
+  @@map("companies")
+}
+
+model EmployerMember {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @unique @map("user_id") @db.Uuid
+  companyId String    @map("company_id") @db.Uuid
+  role      String    @default("member")
+  invitedAt DateTime  @default(now()) @map("invited_at")
+  joinedAt  DateTime? @map("joined_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("employer_members")
+}
+
+model Role {
+  id                    String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId             String     @map("company_id") @db.Uuid
+  title                 String
+  description           String?
+  weightConfig          Json       @map("weight_config")
+  autoQualifyThreshold  Float?     @map("auto_qualify_threshold")
+  requiredSkills        Json?      @map("required_skills")
+  preferredLocation     String?    @map("preferred_location")
+  experienceMin         Int?       @map("experience_min")
+  experienceMax         Int?       @map("experience_max")
+  status                RoleStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  hires   Hire[]
+
+  @@map("roles")
+}
+
+model CandidateView {
+  id              String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId       String  @map("company_id") @db.Uuid
+  talentProfileId String  @map("talent_profile_id") @db.Uuid
+  viewedAt        DateTime @default(now()) @map("viewed_at")
+  shortlisted     Boolean @default(false)
+  notes           String?
+  stage           String?
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  talentProfile TalentProfile @relation(fields: [talentProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, talentProfileId])
+  @@map("candidate_views")
+}
+
+model Hire {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId        String    @map("company_id") @db.Uuid
+  talentProfileId  String    @map("talent_profile_id") @db.Uuid
+  roleId           String?   @map("role_id") @db.Uuid
+  hiredAt          DateTime  @default(now()) @map("hired_at")
+  hireQualityScore Float?    @map("hire_quality_score")
+  feedbackAt       DateTime? @map("feedback_at")
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  talentProfile TalentProfile @relation(fields: [talentProfileId], references: [id], onDelete: Cascade)
+  role          Role?         @relation(fields: [roleId], references: [id])
+
+  @@map("hires")
+}
+
+// ─── Platform ───────────────────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  action    String
+  resource  String?
+  metadata  Json?
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
