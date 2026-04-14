@@ -26,6 +26,12 @@ export function TypeGuard({
   useEffect(() => {
     if (isLoading || !user) return;
 
+    // Banned users: force sign-out + redirect to sign-in
+    if (user.isBanned) {
+      router.replace("/sign-in?banned=1");
+      return;
+    }
+
     // Admins can access anything
     if (user.type === "ADMIN") return;
 

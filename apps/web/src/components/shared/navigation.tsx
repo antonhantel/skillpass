@@ -38,10 +38,14 @@ const employerNavItems = [
 
 const adminNavItems = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
+  { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/companies", label: "Companies", icon: Briefcase },
-  { href: "/admin/talent", label: "Talent Profiles", icon: User },
+  { href: "/admin/talent", label: "Talent", icon: User },
+  { href: "/admin/institutions", label: "Institutions", icon: GraduationCap },
+  { href: "/admin/raters", label: "Raters", icon: MessageSquareText },
   { href: "/admin/audit-log", label: "Audit Log", icon: FileText },
+  { href: "/admin/settings", label: "Settings", icon: ClipboardCheck },
 ];
 
 function Sidebar({ items }: { items: typeof talentNavItems }) {

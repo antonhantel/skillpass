@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
 import {
   Search,
   ChevronLeft,
@@ -14,6 +15,7 @@ import {
   Users,
   Briefcase,
   CheckCircle,
+  ExternalLink,
 } from "lucide-react";
 
 const PLAN_BADGE: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
@@ -96,16 +98,21 @@ export default function AdminCompaniesPage() {
                     return (
                       <tr key={company.id} className="border-b last:border-0 hover:bg-muted/30">
                         <td className="px-4 py-3">
-                          <div>
-                            <div className="font-medium">{company.name}</div>
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Globe className="h-3 w-3" />
-                              {company.domain}
-                              {company.domainVerified && (
-                                <CheckCircle className="h-3 w-3 text-green-500" />
-                              )}
+                          <Link href={`/admin/companies/${company.id}`} className="hover:underline">
+                            <div>
+                              <div className="font-medium flex items-center gap-1">
+                                {company.name}
+                                <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                              </div>
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Globe className="h-3 w-3" />
+                                {company.domain}
+                                {company.domainVerified && (
+                                  <CheckCircle className="h-3 w-3 text-green-500" />
+                                )}
+                              </div>
                             </div>
-                          </div>
+                          </Link>
                         </td>
                         <td className="px-4 py-3">
                           <Badge variant={planBadge.variant}>{planBadge.label}</Badge>

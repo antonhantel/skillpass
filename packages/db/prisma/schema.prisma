@@ -104,11 +104,27 @@ model User {
   updatedAt   DateTime  @updatedAt @map("updated_at")
   lastLoginAt DateTime? @map("last_login_at")
 
+  // Moderation
+  isBanned   Boolean   @default(false) @map("is_banned")
+  bannedAt   DateTime? @map("banned_at")
+  banReason  String?   @map("ban_reason")
+  bannedById String?   @map("banned_by_id") @db.Uuid
+
   talentProfile  TalentProfile?
   employerMember EmployerMember?
   auditLogs      AuditLog[]
 
   @@map("users")
+}
+
+model PlatformSetting {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  @@map("platform_settings")
 }
 
 // ─── Talent ─────────────────────────────────────────────

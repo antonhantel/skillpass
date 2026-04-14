@@ -5,6 +5,7 @@ import { trpc } from "@/lib/trpc-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
 import {
   ChevronLeft,
   ChevronRight,
@@ -13,6 +14,7 @@ import {
   Users,
   ClipboardCheck,
   BarChart3,
+  Ban,
 } from "lucide-react";
 
 export default function AdminTalentPage() {
@@ -86,12 +88,17 @@ export default function AdminTalentPage() {
                   data?.profiles.map((profile) => (
                     <tr key={profile.id} className="border-b last:border-0 hover:bg-muted/30">
                       <td className="px-4 py-3">
-                        <div>
-                          <div className="font-medium">{profile.user.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {profile.user.email}
+                        <Link href={`/admin/talent/${profile.id}`} className="hover:underline">
+                          <div>
+                            <div className="font-medium flex items-center gap-1">
+                              {profile.user.name}
+                              {profile.user.isBanned && <Ban className="h-3 w-3 text-destructive" />}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {profile.user.email}
+                            </div>
                           </div>
-                        </div>
+                        </Link>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
                         @{profile.username}
