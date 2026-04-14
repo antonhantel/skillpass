@@ -40,7 +40,8 @@ export default function SignInPage() {
       return;
     }
 
-    router.push("/dashboard");
+    // Route based on user type via the auth callback logic
+    router.push("/auth/post-login");
     router.refresh();
   }
 

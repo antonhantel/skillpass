@@ -1,9 +1,7 @@
-"use client";
+import OnboardingContent from "./content";
 
-import dynamic from "next/dynamic";
-
-// Prevent SSR/prerendering — Clerk requires runtime env vars
-const OnboardingContent = dynamic(() => import("./content"), { ssr: false });
+// Force dynamic rendering — Supabase auth requires runtime cookies
+export const dynamic = "force-dynamic";
 
 export default function OnboardingPage() {
   return <OnboardingContent />;

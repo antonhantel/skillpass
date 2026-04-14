@@ -65,6 +65,16 @@ export const educationRouter = router({
     .input(updateEducationSchema)
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
+
+      // Verify ownership
+      const existing = await ctx.db.education.findUnique({
+        where: { id },
+        include: { talentProfile: { select: { user: { select: { supabaseId: true } } } } },
+      });
+      if (!existing || existing.talentProfile.user.supabaseId !== ctx.userId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
       return ctx.db.education.update({
         where: { id },
         data: {
@@ -77,6 +87,15 @@ export const educationRouter = router({
   delete: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      // Verify ownership
+      const existing = await ctx.db.education.findUnique({
+        where: { id: input.id },
+        include: { talentProfile: { select: { user: { select: { supabaseId: true } } } } },
+      });
+      if (!existing || existing.talentProfile.user.supabaseId !== ctx.userId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
       return ctx.db.education.delete({ where: { id: input.id } });
     }),
 

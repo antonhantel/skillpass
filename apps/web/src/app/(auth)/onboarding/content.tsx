@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { User, Building2 } from "lucide-react";
+import { User, Building2, Shield } from "lucide-react";
 
 export default function OnboardingContent() {
   const router = useRouter();
@@ -14,6 +14,9 @@ export default function OnboardingContent() {
     undefined,
     { retry: 2 }
   );
+
+  // Check if platform has any admins (to show bootstrap option)
+  const { data: hasAdmin } = trpc.user.hasAdmin.useQuery(undefined, { retry: false });
 
   const setType = trpc.user.setType.useMutation({
     onSuccess: (data) => {
@@ -25,6 +28,10 @@ export default function OnboardingContent() {
         router.push("/admin");
       }
     },
+  });
+
+  const becomeAdmin = trpc.user.becomeFirstAdmin.useMutation({
+    onSuccess: () => router.push("/admin"),
   });
 
   // If user already has a type, redirect them
@@ -52,8 +59,8 @@ export default function OnboardingContent() {
   if (userError) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center space-y-2">
-          <div className="text-destructive">Something went wrong setting up your account.</div>
+        <div className="text-center space-y-2 max-w-md">
+          <div className="text-destructive font-medium">Something went wrong setting up your account.</div>
           <p className="text-sm text-muted-foreground">{userError.message}</p>
           <Button variant="outline" onClick={() => window.location.reload()}>
             Try Again
@@ -63,7 +70,8 @@ export default function OnboardingContent() {
     );
   }
 
-  const isSubmitting = setType.isPending;
+  const isSubmitting = setType.isPending || becomeAdmin.isPending;
+  const error = setType.error || becomeAdmin.error;
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
@@ -75,9 +83,9 @@ export default function OnboardingContent() {
           </p>
         </div>
 
-        {setType.error && (
+        {error && (
           <div className="rounded-md bg-destructive/10 p-3 text-center text-sm text-destructive">
-            {setType.error.message}
+            {error.message}
           </div>
         )}
 
@@ -132,6 +140,32 @@ export default function OnboardingContent() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Admin bootstrap: only shown when no admin exists yet */}
+        {hasAdmin === false && (
+          <Card className="border-dashed">
+            <CardHeader className="text-center pb-3">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <Shield className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <CardTitle className="text-base">Platform Setup</CardTitle>
+              <CardDescription className="text-xs">
+                No admin exists yet. The first user can claim admin access to
+                manage this platform.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center pt-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={isSubmitting}
+                onClick={() => !isSubmitting && becomeAdmin.mutate()}
+              >
+                Claim Admin Access
+              </Button>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

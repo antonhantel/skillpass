@@ -316,7 +316,7 @@ export const employerRouter = router({
     const member = await ctx.db.employerMember.findUnique({
       where: { userId: user.id },
     });
-    if (!member) throw new TRPCError({ code: "FORBIDDEN" });
+    if (!member) return []; // No company yet — return empty array gracefully
 
     return ctx.db.role.findMany({
       where: { companyId: member.companyId },

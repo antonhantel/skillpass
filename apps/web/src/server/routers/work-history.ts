@@ -56,6 +56,16 @@ export const workHistoryRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
+
+      // Verify ownership
+      const existing = await ctx.db.workHistory.findUnique({
+        where: { id },
+        include: { talentProfile: { select: { user: { select: { supabaseId: true } } } } },
+      });
+      if (!existing || existing.talentProfile.user.supabaseId !== ctx.userId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
       return ctx.db.workHistory.update({
         where: { id },
         data: {
@@ -69,6 +79,15 @@ export const workHistoryRouter = router({
   delete: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      // Verify ownership
+      const existing = await ctx.db.workHistory.findUnique({
+        where: { id: input.id },
+        include: { talentProfile: { select: { user: { select: { supabaseId: true } } } } },
+      });
+      if (!existing || existing.talentProfile.user.supabaseId !== ctx.userId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
       return ctx.db.workHistory.delete({ where: { id: input.id } });
     }),
 });
