@@ -9,6 +9,10 @@ export const createTRPCContext = async () => {
     data: { user },
   } = await supabase.auth.getUser();
 
+  console.log(
+    `[trpc] ctx userId=${user?.id ?? "null"} email=${user?.email ?? "null"}`
+  );
+
   return { userId: user?.id ?? null, db };
 };
 

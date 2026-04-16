@@ -15,13 +15,23 @@ export async function GET(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!authUser) {
+    console.log("[post-login] no authUser → /sign-in");
     return NextResponse.redirect(`${origin}/sign-in`);
   }
 
-  // Find or create DB user
+  console.log(
+    `[post-login] authUser.id=${authUser.id} email=${authUser.email}`
+  );
+
   let dbUser = await db.user.findFirst({
     where: { supabaseId: authUser.id },
   });
+
+  if (dbUser) {
+    console.log(
+      `[post-login] matched dbUser.id=${dbUser.id} type=${dbUser.type}`
+    );
+  }
 
   if (!dbUser) {
     const email = authUser.email ?? `${authUser.id}@placeholder.local`;
@@ -35,17 +45,34 @@ export async function GET(request: Request) {
       authUser.user_metadata?.picture ??
       null;
 
-    dbUser = await db.user.create({
-      data: {
-        supabaseId: authUser.id,
-        email,
-        name,
-        avatarUrl,
-      },
-    });
+    // Recover from supabaseId rotation (e.g. user re-created in Supabase dashboard):
+    // if a row exists with this email but a different supabaseId, relink it.
+    const existingByEmail = await db.user.findUnique({ where: { email } });
+    if (existingByEmail) {
+      console.log(
+        `[post-login] RELINK: row by email has supabaseId=${existingByEmail.supabaseId}, auth has ${authUser.id} — updating`
+      );
+      dbUser = await db.user.update({
+        where: { id: existingByEmail.id },
+        data: { supabaseId: authUser.id, name, avatarUrl },
+      });
+    } else {
+      dbUser = await db.user.create({
+        data: {
+          supabaseId: authUser.id,
+          email,
+          name,
+          avatarUrl,
+        },
+      });
+      console.log(
+        `[post-login] CREATED dbUser.id=${dbUser.id} for authUser.id=${authUser.id}`
+      );
+    }
   }
 
   if (!dbUser.type) {
+    console.log(`[post-login] no type → /onboarding`);
     return NextResponse.redirect(`${origin}/onboarding`);
   }
 
@@ -55,5 +82,6 @@ export async function GET(request: Request) {
       : dbUser.type === "EMPLOYER"
         ? "/employer-dashboard"
         : "/dashboard";
+  console.log(`[post-login] → ${dest}`);
   return NextResponse.redirect(`${origin}${dest}`);
 }

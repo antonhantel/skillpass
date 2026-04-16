@@ -50,28 +50,56 @@ export const userRouter = router({
       },
     });
 
-    // Auto-create user if not found in DB
-    if (!user) {
-      const supabase = await createClient();
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
+    if (user) {
+      console.log(
+        `[user.me] matched id=${user.id} type=${user.type} talentProfile=${!!user.talentProfile} supabaseId=${ctx.userId}`
+      );
+      return user;
+    }
 
-      if (!authUser) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
-      }
+    const supabase = await createClient();
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
 
-      const email = authUser.email ?? `${ctx.userId}@placeholder.local`;
-      const name =
-        authUser.user_metadata?.full_name ??
-        authUser.user_metadata?.name ??
-        email.split("@")[0] ??
-        "User";
-      const avatarUrl =
-        authUser.user_metadata?.avatar_url ??
-        authUser.user_metadata?.picture ??
-        null;
+    if (!authUser) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
+    }
 
+    const email = authUser.email ?? `${ctx.userId}@placeholder.local`;
+    const name =
+      authUser.user_metadata?.full_name ??
+      authUser.user_metadata?.name ??
+      email.split("@")[0] ??
+      "User";
+    const avatarUrl =
+      authUser.user_metadata?.avatar_url ??
+      authUser.user_metadata?.picture ??
+      null;
+
+    // Relink if a row already exists for this email under a different supabaseId.
+    const existingByEmail = await ctx.db.user.findUnique({
+      where: { email },
+      include: {
+        talentProfile: true,
+        employerMember: { include: { company: true } },
+      },
+    });
+
+    if (existingByEmail) {
+      console.log(
+        `[user.me] RELINK email=${email} oldSupabaseId=${existingByEmail.supabaseId} newSupabaseId=${ctx.userId}`
+      );
+      user = await ctx.db.user.update({
+        where: { id: existingByEmail.id },
+        data: { supabaseId: ctx.userId, name, avatarUrl },
+        include: {
+          talentProfile: true,
+          employerMember: { include: { company: true } },
+        },
+      });
+    } else {
+      console.log(`[user.me] CREATE new row for supabaseId=${ctx.userId}`);
       user = await ctx.db.user.create({
         data: {
           supabaseId: ctx.userId,

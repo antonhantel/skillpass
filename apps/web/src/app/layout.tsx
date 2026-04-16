@@ -8,9 +8,6 @@ export const metadata: Metadata = {
     "The credit score for professional ability. Build a portable, employer-accepted profile that replaces redundant screening.",
 };
 
-// Force dynamic rendering — Supabase auth requires runtime cookies
-export const dynamic = "force-dynamic";
-
 export default function RootLayout({
   children,
 }: {
