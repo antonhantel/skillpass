@@ -43,7 +43,8 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/sign-in") ||
     path.startsWith("/sign-up") ||
     path.startsWith("/auth/") ||
-    path.startsWith("/api/");
+    path.startsWith("/api/") ||
+    path.startsWith("/lp/");
 
   // Redirect unauthenticated users to sign-in
   if (!user && !isPublicRoute) {
