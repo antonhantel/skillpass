@@ -1,19 +1,16 @@
 import { z } from "zod";
-import { router, protectedProcedure } from "../trpc";
+import { router, userProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 
 // Middleware: enforce ADMIN user type
-const adminProcedure = protectedProcedure.use(async ({ ctx, next }) => {
-  const user = await ctx.db.user.findFirst({
-    where: { supabaseId: ctx.userId },
-  });
-  if (!user || user.type !== "ADMIN") {
+const adminProcedure = userProcedure.use(async ({ ctx, next }) => {
+  if (ctx.user.type !== "ADMIN") {
     throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
   }
-  if (user.isBanned) {
+  if (ctx.user.isBanned) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Account suspended" });
   }
-  return next({ ctx: { ...ctx, adminUser: user } });
+  return next({ ctx: { ...ctx, adminUser: ctx.user } });
 });
 
 export const adminRouter = router({
@@ -24,68 +21,79 @@ export const adminRouter = router({
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    const [
-      totalUsers,
-      talentUsers,
-      employerUsers,
-      adminUsers,
-      bannedUsers,
-      totalCompanies,
-      activeRoles,
-      totalReferences,
-      completedReferences,
-      totalAssessments,
-      totalTranscripts,
-      totalInstitutions,
-      totalRaters,
-      recentSignupsDay,
-      recentSignupsWeek,
-      recentSignupsMonth,
-      recentAuditLogs,
-      totalHires,
-      totalCandidateViews,
-    ] = await Promise.all([
-      ctx.db.user.count(),
-      ctx.db.user.count({ where: { type: "TALENT" } }),
-      ctx.db.user.count({ where: { type: "EMPLOYER" } }),
-      ctx.db.user.count({ where: { type: "ADMIN" } }),
-      ctx.db.user.count({ where: { isBanned: true } }),
-      ctx.db.company.count(),
-      ctx.db.role.count({ where: { status: "ACTIVE" } }),
-      ctx.db.reference.count(),
-      ctx.db.reference.count({ where: { status: "COMPLETED" } }),
-      ctx.db.assessment.count(),
-      ctx.db.transcript.count(),
-      ctx.db.institution.count(),
-      ctx.db.rater.count(),
-      ctx.db.user.count({ where: { createdAt: { gte: dayAgo } } }),
-      ctx.db.user.count({ where: { createdAt: { gte: weekAgo } } }),
-      ctx.db.user.count({ where: { createdAt: { gte: monthAgo } } }),
-      ctx.db.auditLog.count({ where: { createdAt: { gte: dayAgo } } }),
-      ctx.db.hire.count(),
-      ctx.db.candidateView.count(),
+    const [userStats, otherStats] = await Promise.all([
+      ctx.db.$queryRaw<[{
+        total_users: bigint;
+        talent_users: bigint;
+        employer_users: bigint;
+        admin_users: bigint;
+        banned_users: bigint;
+        recent_signups_day: bigint;
+        recent_signups_week: bigint;
+        recent_signups_month: bigint;
+      }]>`
+        SELECT
+          COUNT(*)::bigint AS total_users,
+          COUNT(*) FILTER (WHERE type = 'TALENT')::bigint AS talent_users,
+          COUNT(*) FILTER (WHERE type = 'EMPLOYER')::bigint AS employer_users,
+          COUNT(*) FILTER (WHERE type = 'ADMIN')::bigint AS admin_users,
+          COUNT(*) FILTER (WHERE is_banned = true)::bigint AS banned_users,
+          COUNT(*) FILTER (WHERE created_at >= ${dayAgo})::bigint AS recent_signups_day,
+          COUNT(*) FILTER (WHERE created_at >= ${weekAgo})::bigint AS recent_signups_week,
+          COUNT(*) FILTER (WHERE created_at >= ${monthAgo})::bigint AS recent_signups_month
+        FROM users
+      `,
+      ctx.db.$queryRaw<[{
+        total_companies: bigint;
+        active_roles: bigint;
+        total_references: bigint;
+        completed_references: bigint;
+        total_assessments: bigint;
+        total_transcripts: bigint;
+        total_institutions: bigint;
+        total_raters: bigint;
+        recent_audit_logs: bigint;
+        total_hires: bigint;
+        total_candidate_views: bigint;
+      }]>`
+        SELECT
+          (SELECT COUNT(*)::bigint FROM companies) AS total_companies,
+          (SELECT COUNT(*)::bigint FROM roles WHERE status = 'ACTIVE') AS active_roles,
+          (SELECT COUNT(*)::bigint FROM "references") AS total_references,
+          (SELECT COUNT(*)::bigint FROM "references" WHERE status = 'COMPLETED') AS completed_references,
+          (SELECT COUNT(*)::bigint FROM assessments) AS total_assessments,
+          (SELECT COUNT(*)::bigint FROM transcripts) AS total_transcripts,
+          (SELECT COUNT(*)::bigint FROM institutions) AS total_institutions,
+          (SELECT COUNT(*)::bigint FROM raters) AS total_raters,
+          (SELECT COUNT(*)::bigint FROM audit_logs WHERE created_at >= ${dayAgo}) AS recent_audit_logs,
+          (SELECT COUNT(*)::bigint FROM hires) AS total_hires,
+          (SELECT COUNT(*)::bigint FROM candidate_views) AS total_candidate_views
+      `,
     ]);
 
+    const u = userStats[0];
+    const o = otherStats[0];
+
     return {
-      totalUsers,
-      talentUsers,
-      employerUsers,
-      adminUsers,
-      bannedUsers,
-      totalCompanies,
-      activeRoles,
-      totalReferences,
-      completedReferences,
-      totalAssessments,
-      totalTranscripts,
-      totalInstitutions,
-      totalRaters,
-      recentSignupsDay,
-      recentSignupsWeek,
-      recentSignupsMonth,
-      recentAuditLogs,
-      totalHires,
-      totalCandidateViews,
+      totalUsers: Number(u.total_users),
+      talentUsers: Number(u.talent_users),
+      employerUsers: Number(u.employer_users),
+      adminUsers: Number(u.admin_users),
+      bannedUsers: Number(u.banned_users),
+      totalCompanies: Number(o.total_companies),
+      activeRoles: Number(o.active_roles),
+      totalReferences: Number(o.total_references),
+      completedReferences: Number(o.completed_references),
+      totalAssessments: Number(o.total_assessments),
+      totalTranscripts: Number(o.total_transcripts),
+      totalInstitutions: Number(o.total_institutions),
+      totalRaters: Number(o.total_raters),
+      recentSignupsDay: Number(u.recent_signups_day),
+      recentSignupsWeek: Number(u.recent_signups_week),
+      recentSignupsMonth: Number(u.recent_signups_month),
+      recentAuditLogs: Number(o.recent_audit_logs),
+      totalHires: Number(o.total_hires),
+      totalCandidateViews: Number(o.total_candidate_views),
     };
   }),
 
@@ -206,11 +214,11 @@ export const adminRouter = router({
             include: {
               education: { include: { institution: true } },
               workHistory: { orderBy: { startDate: "desc" } },
-              references: { orderBy: { requestedAt: "desc" } },
+              references: { orderBy: { requestedAt: "desc" }, take: 20 },
               assessments: true,
-              skills: true,
+              skills: { take: 50 },
               scoreHistory: { orderBy: { recordedAt: "desc" }, take: 20 },
-              transcripts: true,
+              transcripts: { take: 10 },
             },
           },
           employerMember: { include: { company: true } },
@@ -427,6 +435,7 @@ export const adminRouter = router({
               role: { select: { title: true } },
             },
             orderBy: { hiredAt: "desc" },
+            take: 20,
           },
           candidateViews: {
             orderBy: { viewedAt: "desc" },

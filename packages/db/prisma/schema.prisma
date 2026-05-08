@@ -172,6 +172,7 @@ model TalentProfile {
   @@index([overallSkillScore])
   @@index([location])
   @@index([yearsExperience])
+  @@index([isPublic, overallSkillScore])
   @@map("talent_profiles")
 }
 
@@ -378,6 +379,7 @@ model Reference {
   talentProfile TalentProfile @relation(fields: [talentProfileId], references: [id], onDelete: Cascade)
   rater         Rater?        @relation(fields: [raterId], references: [id])
 
+  @@index([talentProfileId, status])
   @@map("references")
 }
 
@@ -461,6 +463,7 @@ model EmployerMember {
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
+  @@index([companyId])
   @@map("employer_members")
 }
 

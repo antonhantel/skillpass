@@ -30,4 +30,18 @@ const enforceAuth = t.middleware(async ({ ctx, next }) => {
   return next({ ctx: { ...ctx, userId: ctx.userId } });
 });
 
+const enforceAuthWithUser = t.middleware(async ({ ctx, next }) => {
+  if (!ctx.userId) {
+    throw new TRPCError({ code: "UNAUTHORIZED" });
+  }
+  const user = await ctx.db.user.findFirst({
+    where: { supabaseId: ctx.userId },
+  });
+  if (!user) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+  }
+  return next({ ctx: { ...ctx, userId: ctx.userId, user } });
+});
+
 export const protectedProcedure = t.procedure.use(enforceAuth);
+export const userProcedure = t.procedure.use(enforceAuthWithUser);

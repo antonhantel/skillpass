@@ -1,37 +1,31 @@
 import { z } from "zod";
-import { router, protectedProcedure, publicProcedure } from "../trpc";
+import { router, protectedProcedure, publicProcedure, userProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { requestReferenceSchema, submitReferenceSchema } from "@skillpass/shared";
 import { randomBytes } from "crypto";
 
 export const referenceRouter = router({
   /** List all references for the current user's talent profile */
-  list: protectedProcedure.query(async ({ ctx }) => {
-    const user = await ctx.db.user.findFirst({
-      where: { supabaseId: ctx.userId },
-      include: { talentProfile: true },
+  list: userProcedure.query(async ({ ctx }) => {
+    const profile = await ctx.db.talentProfile.findUnique({
+      where: { userId: ctx.user.id },
     });
-
-    if (!user?.talentProfile) {
-      return [];
-    }
+    if (!profile) return [];
 
     return ctx.db.reference.findMany({
-      where: { talentProfileId: user.talentProfile.id },
+      where: { talentProfileId: profile.id },
       orderBy: { requestedAt: "desc" },
     });
   }),
 
   /** Create a reference request with a unique token */
-  request: protectedProcedure
+  request: userProcedure
     .input(requestReferenceSchema)
     .mutation(async ({ ctx, input }) => {
-      const user = await ctx.db.user.findFirst({
-        where: { supabaseId: ctx.userId },
-        include: { talentProfile: true },
+      const profile = await ctx.db.talentProfile.findUnique({
+        where: { userId: ctx.user.id },
       });
-
-      if (!user?.talentProfile) {
+      if (!profile) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "You must have a talent profile to request references.",
@@ -40,11 +34,11 @@ export const referenceRouter = router({
 
       const token = randomBytes(32).toString("hex");
       const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
+      expiresAt.setDate(expiresAt.getDate() + 30);
 
       const reference = await ctx.db.reference.create({
         data: {
-          talentProfileId: user.talentProfile.id,
+          talentProfileId: profile.id,
           raterEmail: input.raterEmail,
           raterName: input.raterName,
           relationshipType: input.relationshipType,
@@ -150,16 +144,11 @@ export const referenceRouter = router({
     }),
 
   /** Cancel a pending reference (talent only) */
-  cancel: protectedProcedure
+  cancel: userProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      const user = await ctx.db.user.findFirst({
-        where: { supabaseId: ctx.userId },
-      });
-      if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
       const profile = await ctx.db.talentProfile.findUnique({
-        where: { userId: user.id },
+        where: { userId: ctx.user.id },
       });
       if (!profile) throw new TRPCError({ code: "NOT_FOUND" });
 
@@ -179,16 +168,11 @@ export const referenceRouter = router({
     }),
 
   /** Resend / regenerate token for a pending reference */
-  resend: protectedProcedure
+  resend: userProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      const user = await ctx.db.user.findFirst({
-        where: { supabaseId: ctx.userId },
-      });
-      if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
       const profile = await ctx.db.talentProfile.findUnique({
-        where: { userId: user.id },
+        where: { userId: ctx.user.id },
       });
       if (!profile) throw new TRPCError({ code: "NOT_FOUND" });
 

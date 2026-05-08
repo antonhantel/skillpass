@@ -2,5 +2,10 @@
   "framework": "nextjs",
   "buildCommand": "pnpm turbo build --filter=@skillpass/web",
   "installCommand": "pnpm install",
-  "outputDirectory": "apps/web/.next"
+  "outputDirectory": "apps/web/.next",
+  "functions": {
+    "apps/web/src/app/api/**/*.ts": {
+      "maxDuration": 60
+    }
+  }
 }

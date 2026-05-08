@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, protectedProcedure } from "../trpc";
+import { router, protectedProcedure, userProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 
 const createReviewSchema = z.object({
@@ -12,14 +12,9 @@ const createReviewSchema = z.object({
 });
 
 export const performanceReviewRouter = router({
-  list: protectedProcedure.query(async ({ ctx }) => {
-    const user = await ctx.db.user.findFirst({
-      where: { supabaseId: ctx.userId },
-    });
-    if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
+  list: userProcedure.query(async ({ ctx }) => {
     const profile = await ctx.db.talentProfile.findUnique({
-      where: { userId: user.id },
+      where: { userId: ctx.user.id },
     });
     if (!profile) throw new TRPCError({ code: "NOT_FOUND" });
 
@@ -29,16 +24,11 @@ export const performanceReviewRouter = router({
     });
   }),
 
-  create: protectedProcedure
+  create: userProcedure
     .input(createReviewSchema)
     .mutation(async ({ ctx, input }) => {
-      const user = await ctx.db.user.findFirst({
-        where: { supabaseId: ctx.userId },
-      });
-      if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
       const profile = await ctx.db.talentProfile.findUnique({
-        where: { userId: user.id },
+        where: { userId: ctx.user.id },
       });
       if (!profile) throw new TRPCError({ code: "NOT_FOUND" });
 

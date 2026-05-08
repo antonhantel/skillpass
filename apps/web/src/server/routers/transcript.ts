@@ -1,16 +1,11 @@
 import { z } from "zod";
-import { router, protectedProcedure } from "../trpc";
+import { router, protectedProcedure, userProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 
 export const transcriptRouter = router({
-  list: protectedProcedure.query(async ({ ctx }) => {
-    const user = await ctx.db.user.findFirst({
-      where: { supabaseId: ctx.userId },
-    });
-    if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
+  list: userProcedure.query(async ({ ctx }) => {
     const profile = await ctx.db.talentProfile.findUnique({
-      where: { userId: user.id },
+      where: { userId: ctx.user.id },
     });
     if (!profile) throw new TRPCError({ code: "NOT_FOUND" });
 
@@ -26,7 +21,7 @@ export const transcriptRouter = router({
       return ctx.db.transcript.findUnique({ where: { id: input.id } });
     }),
 
-  create: protectedProcedure
+  create: userProcedure
     .input(
       z.object({
         fileUrl: z.string().url(),
@@ -35,13 +30,8 @@ export const transcriptRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const user = await ctx.db.user.findFirst({
-        where: { supabaseId: ctx.userId },
-      });
-      if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
       const profile = await ctx.db.talentProfile.findUnique({
-        where: { userId: user.id },
+        where: { userId: ctx.user.id },
       });
       if (!profile) throw new TRPCError({ code: "NOT_FOUND" });
 

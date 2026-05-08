@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, protectedProcedure, publicProcedure } from "../trpc";
+import { router, protectedProcedure, publicProcedure, userProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -11,7 +11,7 @@ export const userRouter = router({
   }),
 
   // Bootstrap first admin — only works when there are zero admins on the platform
-  becomeFirstAdmin: protectedProcedure.mutation(async ({ ctx }) => {
+  becomeFirstAdmin: userProcedure.mutation(async ({ ctx }) => {
     const adminCount = await ctx.db.user.count({ where: { type: "ADMIN" } });
     if (adminCount > 0) {
       throw new TRPCError({
@@ -20,22 +20,17 @@ export const userRouter = router({
       });
     }
 
-    const user = await ctx.db.user.findFirst({
-      where: { supabaseId: ctx.userId },
-    });
-    if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
     const updated = await ctx.db.user.update({
-      where: { id: user.id },
+      where: { id: ctx.user.id },
       data: { type: "ADMIN" },
     });
 
     await ctx.db.auditLog.create({
       data: {
-        userId: user.id,
+        userId: ctx.user.id,
         action: "user.becomeFirstAdmin",
-        resource: `user:${user.id}`,
-        metadata: { email: user.email },
+        resource: `user:${ctx.user.id}`,
+        metadata: { email: ctx.user.email },
       },
     });
 
@@ -117,28 +112,22 @@ export const userRouter = router({
     return user;
   }),
 
-  setType: protectedProcedure
+  setType: userProcedure
     .input(z.object({ type: z.enum(["TALENT", "EMPLOYER"]) }))
     .mutation(async ({ ctx, input }) => {
-      const user = await ctx.db.user.findFirst({
-        where: { supabaseId: ctx.userId },
-      });
-      if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
       const updated = await ctx.db.user.update({
-        where: { id: user.id },
+        where: { id: ctx.user.id },
         data: { type: input.type },
       });
 
-      // If talent, create talent profile
       if (input.type === "TALENT") {
         const username =
-          user.email.split("@")[0]?.replace(/[^a-z0-9_-]/g, "") ??
+          ctx.user.email.split("@")[0]?.replace(/[^a-z0-9_-]/g, "") ??
           `user-${Date.now()}`;
         await ctx.db.talentProfile.upsert({
-          where: { userId: user.id },
+          where: { userId: ctx.user.id },
           create: {
-            userId: user.id,
+            userId: ctx.user.id,
             username,
           },
           update: {},

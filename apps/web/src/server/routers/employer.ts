@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, protectedProcedure } from "../trpc";
+import { router, userProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 
 const createCompanySchema = z.object({
@@ -35,14 +35,9 @@ const searchCandidatesSchema = z.object({
 
 export const employerRouter = router({
   // Get the current user's company info
-  getCompany: protectedProcedure.query(async ({ ctx }) => {
-    const user = await ctx.db.user.findFirst({
-      where: { supabaseId: ctx.userId },
-    });
-    if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
+  getCompany: userProcedure.query(async ({ ctx }) => {
     const member = await ctx.db.employerMember.findUnique({
-      where: { userId: user.id },
+      where: { userId: ctx.user.id },
       include: {
         company: {
           include: {
@@ -62,17 +57,11 @@ export const employerRouter = router({
   }),
 
   // Create a company (during employer onboarding)
-  createCompany: protectedProcedure
+  createCompany: userProcedure
     .input(createCompanySchema)
     .mutation(async ({ ctx, input }) => {
-      const user = await ctx.db.user.findFirst({
-        where: { supabaseId: ctx.userId },
-      });
-      if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
-      // Check if user already has a company
       const existing = await ctx.db.employerMember.findUnique({
-        where: { userId: user.id },
+        where: { userId: ctx.user.id },
       });
       if (existing) {
         throw new TRPCError({ code: "CONFLICT", message: "You already belong to a company" });
@@ -96,7 +85,7 @@ export const employerRouter = router({
           trialEndsAt: trialEnd,
           members: {
             create: {
-              userId: user.id,
+              userId: ctx.user.id,
               role: "admin",
               joinedAt: new Date(),
             },
@@ -109,16 +98,11 @@ export const employerRouter = router({
     }),
 
   // Search candidates
-  searchCandidates: protectedProcedure
+  searchCandidates: userProcedure
     .input(searchCandidatesSchema)
     .query(async ({ ctx, input }) => {
-      const user = await ctx.db.user.findFirst({
-        where: { supabaseId: ctx.userId },
-      });
-      if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
       const member = await ctx.db.employerMember.findUnique({
-        where: { userId: user.id },
+        where: { userId: ctx.user.id },
       });
       if (!member) {
         throw new TRPCError({ code: "FORBIDDEN", message: "No company associated" });
@@ -147,6 +131,12 @@ export const employerRouter = router({
         };
       }
 
+      if (input.skills && input.skills.length > 0) {
+        where.skills = {
+          some: { name: { in: input.skills, mode: "insensitive" } },
+        };
+      }
+
       const [candidates, total] = await Promise.all([
         ctx.db.talentProfile.findMany({
           where,
@@ -167,29 +157,15 @@ export const employerRouter = router({
         ctx.db.talentProfile.count({ where }),
       ]);
 
-      // Filter by skills if specified (post-filter since it's a relation)
-      let results = candidates;
-      if (input.skills && input.skills.length > 0) {
-        const lowerSkills = input.skills.map((s) => s.toLowerCase());
-        results = candidates.filter((c) =>
-          c.skills.some((s) => lowerSkills.includes(s.name.toLowerCase()))
-        );
-      }
-
-      return { candidates: results, total };
+      return { candidates, total };
     }),
 
   // View a candidate profile (records the view)
-  viewCandidate: protectedProcedure
+  viewCandidate: userProcedure
     .input(z.object({ talentProfileId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      const user = await ctx.db.user.findFirst({
-        where: { supabaseId: ctx.userId },
-      });
-      if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
       const member = await ctx.db.employerMember.findUnique({
-        where: { userId: user.id },
+        where: { userId: ctx.user.id },
       });
       if (!member) throw new TRPCError({ code: "FORBIDDEN" });
 
@@ -213,16 +189,11 @@ export const employerRouter = router({
     }),
 
   // Shortlist / un-shortlist a candidate
-  toggleShortlist: protectedProcedure
+  toggleShortlist: userProcedure
     .input(z.object({ talentProfileId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      const user = await ctx.db.user.findFirst({
-        where: { supabaseId: ctx.userId },
-      });
-      if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
       const member = await ctx.db.employerMember.findUnique({
-        where: { userId: user.id },
+        where: { userId: ctx.user.id },
       });
       if (!member) throw new TRPCError({ code: "FORBIDDEN" });
 
@@ -254,14 +225,9 @@ export const employerRouter = router({
     }),
 
   // Get shortlisted candidates
-  getShortlist: protectedProcedure.query(async ({ ctx }) => {
-    const user = await ctx.db.user.findFirst({
-      where: { supabaseId: ctx.userId },
-    });
-    if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
+  getShortlist: userProcedure.query(async ({ ctx }) => {
     const member = await ctx.db.employerMember.findUnique({
-      where: { userId: user.id },
+      where: { userId: ctx.user.id },
     });
     if (!member) throw new TRPCError({ code: "FORBIDDEN" });
 
@@ -280,16 +246,11 @@ export const employerRouter = router({
   }),
 
   // CRUD for roles
-  createRole: protectedProcedure
+  createRole: userProcedure
     .input(createRoleSchema)
     .mutation(async ({ ctx, input }) => {
-      const user = await ctx.db.user.findFirst({
-        where: { supabaseId: ctx.userId },
-      });
-      if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
       const member = await ctx.db.employerMember.findUnique({
-        where: { userId: user.id },
+        where: { userId: ctx.user.id },
       });
       if (!member) throw new TRPCError({ code: "FORBIDDEN" });
 
@@ -307,14 +268,9 @@ export const employerRouter = router({
       });
     }),
 
-  listRoles: protectedProcedure.query(async ({ ctx }) => {
-    const user = await ctx.db.user.findFirst({
-      where: { supabaseId: ctx.userId },
-    });
-    if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
+  listRoles: userProcedure.query(async ({ ctx }) => {
     const member = await ctx.db.employerMember.findUnique({
-      where: { userId: user.id },
+      where: { userId: ctx.user.id },
     });
     if (!member) return []; // No company yet — return empty array gracefully
 
@@ -325,14 +281,9 @@ export const employerRouter = router({
   }),
 
   // Dashboard stats
-  getStats: protectedProcedure.query(async ({ ctx }) => {
-    const user = await ctx.db.user.findFirst({
-      where: { supabaseId: ctx.userId },
-    });
-    if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
+  getStats: userProcedure.query(async ({ ctx }) => {
     const member = await ctx.db.employerMember.findUnique({
-      where: { userId: user.id },
+      where: { userId: ctx.user.id },
     });
     if (!member) return null;
 

@@ -1,4 +1,4 @@
-import { router, protectedProcedure } from "../trpc";
+import { router, userProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import {
   SKILLSCORE_MIN,
@@ -10,20 +10,20 @@ import {
 } from "@skillpass/shared";
 
 export const scoreRouter = router({
-  recalculate: protectedProcedure.mutation(async ({ ctx }) => {
-    const user = await ctx.db.user.findFirst({
-      where: { supabaseId: ctx.userId },
-    });
-    if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
+  recalculate: userProcedure.mutation(async ({ ctx }) => {
     const profile = await ctx.db.talentProfile.findUnique({
-      where: { userId: user.id },
+      where: { userId: ctx.user.id },
       include: {
-        education: { include: { institution: true, courses: true } },
+        education: {
+          include: {
+            institution: true,
+            courses: { select: { rigorScore: true } },
+          },
+        },
         references: { where: { status: "COMPLETED" } },
         assessments: { where: { completedAt: { not: null } } },
-        performanceReviews: true,
-        transcripts: { where: { status: "VERIFIED" } },
+        performanceReviews: { select: { overallSentiment: true } },
+        transcripts: { where: { status: "VERIFIED" }, select: { id: true } },
       },
     });
     if (!profile) throw new TRPCError({ code: "NOT_FOUND" });

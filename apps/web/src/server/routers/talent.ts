@@ -1,26 +1,22 @@
 import { z } from "zod";
-import { router, protectedProcedure } from "../trpc";
+import { router, userProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { updateProfileSchema, addSkillSchema } from "@skillpass/shared";
 
 export const talentRouter = router({
-  getProfile: protectedProcedure.query(async ({ ctx }) => {
-    const user = await ctx.db.user.findFirst({
-      where: { supabaseId: ctx.userId },
-    });
-    if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
+  getProfile: userProcedure.query(async ({ ctx }) => {
     const profile = await ctx.db.talentProfile.findUnique({
-      where: { userId: user.id },
+      where: { userId: ctx.user.id },
       include: {
         education: {
-          include: { institution: true, courses: true },
+          include: { institution: true },
           orderBy: { graduationYear: "desc" },
+          take: 20,
         },
-        workHistory: { orderBy: { startDate: "desc" } },
-        skills: { orderBy: { name: "asc" } },
-        transcripts: { orderBy: { createdAt: "desc" } },
-        references: { orderBy: { requestedAt: "desc" } },
+        workHistory: { orderBy: { startDate: "desc" }, take: 20 },
+        skills: { orderBy: { name: "asc" }, take: 50 },
+        transcripts: { orderBy: { createdAt: "desc" }, take: 10 },
+        references: { orderBy: { requestedAt: "desc" }, take: 20 },
         assessments: true,
         scoreHistory: { orderBy: { recordedAt: "desc" }, take: 10 },
       },
@@ -29,40 +25,29 @@ export const talentRouter = router({
     return profile;
   }),
 
-  updateProfile: protectedProcedure
+  updateProfile: userProcedure
     .input(updateProfileSchema)
     .mutation(async ({ ctx, input }) => {
-      const user = await ctx.db.user.findFirst({
-        where: { supabaseId: ctx.userId },
-      });
-      if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
-      // Check username uniqueness if changing
       if (input.username) {
         const existing = await ctx.db.talentProfile.findUnique({
           where: { username: input.username },
         });
-        if (existing && existing.userId !== user.id) {
+        if (existing && existing.userId !== ctx.user.id) {
           throw new TRPCError({ code: "CONFLICT", message: "Username already taken" });
         }
       }
 
       return ctx.db.talentProfile.update({
-        where: { userId: user.id },
+        where: { userId: ctx.user.id },
         data: input,
       });
     }),
 
-  addSkill: protectedProcedure
+  addSkill: userProcedure
     .input(addSkillSchema)
     .mutation(async ({ ctx, input }) => {
-      const user = await ctx.db.user.findFirst({
-        where: { supabaseId: ctx.userId },
-      });
-      if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
       const profile = await ctx.db.talentProfile.findUnique({
-        where: { userId: user.id },
+        where: { userId: ctx.user.id },
       });
       if (!profile) throw new TRPCError({ code: "NOT_FOUND" });
 
@@ -76,7 +61,7 @@ export const talentRouter = router({
       });
     }),
 
-  removeSkill: protectedProcedure
+  removeSkill: userProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       return ctx.db.talentSkill.delete({ where: { id: input.id } });

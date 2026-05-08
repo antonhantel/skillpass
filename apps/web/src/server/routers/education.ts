@@ -1,17 +1,12 @@
 import { z } from "zod";
-import { router, protectedProcedure } from "../trpc";
+import { router, protectedProcedure, userProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { createEducationSchema, updateEducationSchema } from "@skillpass/shared";
 
 export const educationRouter = router({
-  list: protectedProcedure.query(async ({ ctx }) => {
-    const user = await ctx.db.user.findFirst({
-      where: { supabaseId: ctx.userId },
-    });
-    if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
+  list: userProcedure.query(async ({ ctx }) => {
     const profile = await ctx.db.talentProfile.findUnique({
-      where: { userId: user.id },
+      where: { userId: ctx.user.id },
     });
     if (!profile) throw new TRPCError({ code: "NOT_FOUND" });
 
@@ -22,16 +17,11 @@ export const educationRouter = router({
     });
   }),
 
-  create: protectedProcedure
+  create: userProcedure
     .input(createEducationSchema)
     .mutation(async ({ ctx, input }) => {
-      const user = await ctx.db.user.findFirst({
-        where: { supabaseId: ctx.userId },
-      });
-      if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-
       const profile = await ctx.db.talentProfile.findUnique({
-        where: { userId: user.id },
+        where: { userId: ctx.user.id },
       });
       if (!profile) throw new TRPCError({ code: "NOT_FOUND" });
 
